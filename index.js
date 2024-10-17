@@ -31,7 +31,7 @@ app.use(bodyParser.json());
 
 mongoose
   .connect(
-    "mongodb+srv://alighouridev:wMSxuw2Dx5EPjInL@cluster0.5gfj4zc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
+    "mongodb+srv://gali76682:xTgBeqc2Bs2Wdvkf@serverlessinstance0.dlbyqem.mongodb.net/?retryWrites=true&w=majority&appName=ServerlessInstance0",
     {
       useNewUrlParser: true,
       useUnifiedTopology: true,
