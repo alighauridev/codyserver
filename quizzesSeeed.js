@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const { faker } = require("@faker-js/faker");
-const Quiz = require("./models/quizModel");
 const Category = require("./models/category");
+const { Quiz, Question } = require("./models/quizModel");
 
 mongoose.connect(
   "mongodb+srv://alighouridev:wMSxuw2Dx5EPjInL@cluster0.5gfj4zc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
@@ -39,15 +39,26 @@ const generateQuizQuestion = () => {
   };
 };
 
-const generateQuiz = (categoryId) => {
+const generateQuiz = async (categoryId) => {
   const questionCount = faker.number.int({ min: 5, max: 20 });
-  const questions = Array.from({ length: questionCount }, generateQuizQuestion);
+  const questionData = Array.from(
+    { length: questionCount },
+    generateQuizQuestion
+  );
+
+  // Create Question documents
+  const questions = await Question.create(questionData);
+
+  const quizTime =
+    questionCount * 2 +
+    questions.reduce((acc, q) => acc + q.options.length * 0.5, 0);
+  const estimatedTime = Math.ceil(quizTime);
 
   return {
     title: faker.lorem.words({ min: 3, max: 6 }),
     icon: faker.helpers.arrayElement(icons),
     category: categoryId,
-    info: `${questionCount} questions • ${faker.number.int({ min: 10, max: 60 })} min`,
+    info: `${questionCount} questions • ${estimatedTime} min`,
     difficulty: faker.helpers.arrayElement(difficulties),
     attempts: faker.number.int({ min: 0, max: 10000 }),
     description: faker.lorem.paragraph(),
@@ -66,7 +77,7 @@ const generateQuiz = (categoryId) => {
       ],
       { min: 2, max: 5 }
     ),
-    questions: questions,
+    questions: questions.map((q) => q._id),
   };
 };
 
@@ -82,14 +93,15 @@ const seedDatabase = async (quizCount = 20) => {
     }
     console.log(`Found ${categories.length} existing categories`);
 
-    // Clear existing quizzes
+    // Clear existing quizzes and questions
     await Quiz.deleteMany({});
-    console.log("Cleared existing quizzes");
+    await Question.deleteMany({});
+    console.log("Cleared existing quizzes and questions");
 
     const quizzes = [];
     for (let i = 0; i < quizCount; i++) {
       const randomCategory = faker.helpers.arrayElement(categories);
-      const quiz = generateQuiz(randomCategory._id);
+      const quiz = await generateQuiz(randomCategory._id);
       quizzes.push(quiz);
     }
 

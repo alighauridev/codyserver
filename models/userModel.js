@@ -81,6 +81,12 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    quizProgress: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "QuizProgress",
+      },
+    ],
     resetPasswordToken: String,
     resetPasswordExpire: Date,
   },

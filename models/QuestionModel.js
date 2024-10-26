@@ -22,6 +22,6 @@ const questionSchema = new Schema({
   },
 });
 
-const Question = mongoose.model("Question", questionSchema);
+const Question = mongoose.model("QuestionSample", questionSchema);
 
 module.exports = Question;

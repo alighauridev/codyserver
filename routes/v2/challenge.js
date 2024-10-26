@@ -1,7 +1,5 @@
 const express = require("express");
 const asyncHandler = require("../../middlewares/asyncErrorHandler");
-const Quiz = require("../../models/quizModel");
-const ErrorHandler = require("../../utils/ErrorHandler");
 const Challenge = require("../../models/challenge");
 const router = express.Router();
 
