@@ -10,20 +10,25 @@ const Course = require("../../models/courseModel");
 const router = express.Router();
 
 const processContent = (content) => {
+  // If content is already a string, return it directly
   if (typeof content === "string") {
-    try {
-      // Check if the string is valid JSON
-      JSON.parse(content);
-      // If it's valid JSON, stringify it with indentation for readability
-      return JSON.stringify(JSON.parse(content), null, 2);
-    } catch (e) {
-      // If it's not valid JSON, return the original string
-      return content;
+    // Only try to parse and stringify if it looks like JSON
+    if (content.trim().startsWith("{") || content.trim().startsWith("[")) {
+      try {
+        return JSON.stringify(JSON.parse(content), null, 2);
+      } catch (e) {
+        // If parsing fails, it's probably markdown text, return as-is
+        return content;
+      }
     }
-  } else if (typeof content === "object") {
-    // If it's already an object, stringify it
+    return content;
+  }
+
+  // If content is an object, stringify it
+  if (typeof content === "object" && content !== null) {
     return JSON.stringify(content, null, 2);
   }
+
   // For any other type, convert to string
   return String(content);
 };
@@ -35,6 +40,15 @@ router.get(
     const lesson = await Lesson.findById(id);
     if (!lesson) {
       return next(new ErrorHandler("Lesson not found", 404));
+    }
+    if (typeof lesson.content === "string" && lesson.content.startsWith('"')) {
+      try {
+        console.log("THis is json");
+
+        lesson.content = JSON.parse(lesson.content);
+      } catch (e) {
+        // If parsing fails, keep the original content
+      }
     }
     res.status(200).json({
       success: true,
@@ -53,49 +67,78 @@ router.post(
       return next(new ErrorHandler("Please provide a topic id"));
     }
 
-    const topic = await Topic.findById(topicId);
+    // Fetch topic and course in parallel
+    const [topic, course] = await Promise.all([
+      Topic.findById(topicId),
+      Topic.findById(topicId)
+        .select("courseId")
+        .then((t) => (t ? Course.findById(t.courseId) : null)),
+    ]);
+
     if (!topic) {
       return next(new ErrorHandler("Topic not found", 404));
     }
 
-    const course = await Course.findById(topic.courseId)
-      .populate({
-        path: "topics",
-        select: "duration",
-      })
-      .select("duration lessonsCount");
+    if (!course) {
+      return next(new ErrorHandler("Course not found", 404));
+    }
 
-    // Process content to ensure it's stored as text
+    // Process content
     content = processContent(content);
-
     const duration = optimizedEstimateReadingTime(content);
 
-    const lesson = await Lesson.create({
-      title,
-      content,
-      topic: topic._id,
-      duration,
-    });
+    // Create lesson and fetch all topics in parallel
+    const [lesson, allTopics] = await Promise.all([
+      Lesson.create({
+        title,
+        content,
+        topic: topic._id,
+        duration,
+      }),
+      Topic.find({ courseId: course._id }, "duration"),
+    ]);
 
-    topic.lessons.push(lesson._id);
-    topic.duration += Number(duration);
+    // Calculate new durations
+    const updatedTopicDuration = topic.duration + Number(duration);
+    const totalCourseDuration = allTopics.reduce((total, currentTopic) => {
+      if (currentTopic._id.toString() === topicId) {
+        return total + updatedTopicDuration;
+      }
+      return total + (currentTopic.duration || 0);
+    }, 0);
 
-    const totalCourseDuration = course.topics.reduce(
-      (total, t) => total + t.duration,
-      0
-    );
-
-    course.duration = totalCourseDuration;
-    course.lessonsCount += 1;
-
+    // Update topic and course in parallel
     await Promise.all([
-      topic.save({ validateBeforeSave: false }),
-      course.save({ validateBeforeSave: false }),
+      Topic.findByIdAndUpdate(
+        topicId,
+        {
+          $push: { lessons: lesson._id },
+          $set: { duration: updatedTopicDuration },
+        },
+        {
+          new: true,
+          runValidators: false,
+        }
+      ),
+      Course.findByIdAndUpdate(
+        course._id,
+        {
+          $set: {
+            duration: totalCourseDuration,
+            lessonsCount: course.lessonsCount + 1,
+          },
+        },
+        {
+          new: true,
+          runValidators: false,
+        }
+      ),
     ]);
 
     res.status(200).json({
       success: true,
       message: "Lesson created successfully",
+      lessonId: lesson._id, // Added for convenience
     });
   })
 );
@@ -164,13 +207,44 @@ router.delete(
       return next(new ErrorHandler("Lesson not found", 404));
     }
 
-    await lesson.remove();
+    // Get the associated topic and course before deleting the lesson
+    const [topic, course] = await Promise.all([
+      Topic.findById(lesson.topic),
+      Course.findOne({ topics: lesson.topic }),
+    ]);
 
-    // Remove lesson from topic and update duration
-    await Topic.findByIdAndUpdate(lesson.topic, {
-      $pull: { lessons: lesson._id },
-      //   $inc: { duration: -lesson.duration },
-    });
+    if (!topic || !course) {
+      return next(
+        new ErrorHandler("Associated topic or course not found", 404)
+      );
+    }
+
+    // Calculate new durations
+    const newTopicDuration = Math.max(0, topic.duration - lesson.duration);
+    const newCourseDuration = Math.max(0, course.duration - lesson.duration);
+
+    // Update the topic and course
+    await Promise.all([
+      Topic.findByIdAndUpdate(
+        lesson.topic,
+        {
+          $pull: { lessons: lesson._id },
+          $set: { duration: newTopicDuration },
+        },
+        { new: true }
+      ),
+      Course.findByIdAndUpdate(
+        course._id,
+        {
+          $set: {
+            duration: newCourseDuration,
+            lessonsCount: Math.max(0, course.lessonsCount - 1),
+          },
+        },
+        { new: true }
+      ),
+      lesson.remove(),
+    ]);
 
     res.status(200).json({
       success: true,
