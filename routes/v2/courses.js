@@ -106,8 +106,8 @@ router.get(
       query = query.sort("-publishedAt");
     }
 
-    if (rating && rating!=="All") {
-      console.log({rating})
+    if (rating && rating !== "All") {
+      console.log({ rating });
       const ratingNumber = parseInt(rating);
       if (!isNaN(ratingNumber) && ratingNumber >= 1 && ratingNumber <= 5) {
         query = query
@@ -856,8 +856,16 @@ router.patch(
   "/courses/:id",
   asyncHandler(async (req, res, next) => {
     const { id } = req.params;
-    const { title, description, difficulty, tags, category, logo, status } =
-      req.body;
+    const {
+      title,
+      description,
+      difficulty,
+      tags,
+      category,
+      logo,
+      status,
+      duration,
+    } = req.body;
 
     if (!id) {
       return next(new ErrorHandler("Please provide the course id", 400));
@@ -877,10 +885,11 @@ router.patch(
     if (description) course.description = description;
     if (difficulty) course.difficulty = difficulty;
     if (tags) course.tags = tags;
+    if (Number(duration) !== course.duration)
+      course.duration = Number(duration);
     if (category !== course.category._id.toString()) {
       const oldCategory = course.category;
       course.category = category;
-
       // Update category course counts
       await Promise.all([
         Category.findByIdAndUpdate(oldCategory, {

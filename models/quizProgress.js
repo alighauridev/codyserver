@@ -15,7 +15,7 @@ const quizProgressSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["In Progress", "Completed"],
+      enum: ["In Progress", "Completed", "Reset"],
       default: "In Progress",
     },
     score: {
@@ -42,7 +42,7 @@ const quizProgressSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
-
+quizProgressSchema.index({ user: 1, quiz: 1, status: 1 });
 const QuizProgress = mongoose.model("QuizProgress", quizProgressSchema);
 
 module.exports = QuizProgress;

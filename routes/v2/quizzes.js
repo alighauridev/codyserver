@@ -57,7 +57,6 @@ router.post(
         $addToSet: { quizProgress: quizProgress._id },
       });
     } else {
-      // Update the lastAttemptDate for an existing in-progress quiz
       quizProgress.lastAttemptDate = new Date();
       await quizProgress.save();
     }
@@ -76,8 +75,19 @@ router.post(
     const { quizId } = req.params;
     const userId = req.user._id;
 
-    // Delete existing progress
-    await QuizProgress.findOneAndDelete({ user: userId, quiz: quizId });
+    const quizProgress = await QuizProgress.findOne({
+      user: userId,
+      quiz: quizId,
+    });
+
+    if (quizProgress) {
+      quizProgress.status = "In Progress";
+      quizProgress.score = 0;
+      quizProgress.progress = 0;
+      quizProgress.lastAttemptDate = new Date();
+      quizProgress.completionDate = null;
+      await quizProgress.save();
+    }
 
     res.status(200).json({
       success: true,
