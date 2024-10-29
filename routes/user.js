@@ -102,7 +102,9 @@ router.post("/login", async (req, res, next) => {
 
   const token = user.getJWTToken();
 
-  const loggedInUser = await User.findById(user._id).select("");
+  const loggedInUser = await User.findById(user._id).select(
+    "-quizProgress -enrolledCourses"
+  );
 
   res.status(200).json({
     success: true,
@@ -124,7 +126,7 @@ router.post(
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select(
-      "+otp.code +otp.expiry +otpPurpose"
+      "+otp.code +otp.expiry +otpPurpose -quizProgress -enrolledCourses"
     );
 
     if (!user) {
@@ -258,7 +260,9 @@ router.post(
       return next(new ErrorHandler("Please provide an email address", 400));
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select(
+      "-quizProgress -enrolledCourses"
+    );
 
     if (!user) {
       return next(new ErrorHandler("User not found with this email", 404));
@@ -347,7 +351,7 @@ router.post(
     }
 
     const user = await User.findById(decoded.id).select(
-      "+otp.code +otp.expiry +otpPurpose"
+      "+otp.code +otp.expiry +otpPurpose -quizProgress -enrolledCourses"
     );
 
     if (!user) {

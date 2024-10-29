@@ -16,7 +16,7 @@ const getUserById = async (userId) => {
     if (user) {
       return user;
     }
-    user = await User.findById(userId);
+    user = await User.findById(userId).select("-quizProgress -enrolledCourses");
 
     if (user) {
       userCache.set(userId, user);
