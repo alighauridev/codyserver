@@ -41,7 +41,9 @@ router.post(
     });
 
     if (!quizProgress) {
-      // Create a new progress entry if none exists or if the previous one was completed
+      await Quiz.findByIdAndUpdate(quizId, { $inc: { attempts: 1 } });
+
+      // Create new progress entry
       quizProgress = await QuizProgress.create({
         user: userId,
         quiz: quizId,
@@ -57,6 +59,16 @@ router.post(
         $addToSet: { quizProgress: quizProgress._id },
       });
     } else {
+      // Reset progress if it was completed
+      if (quizProgress.status === "Completed") {
+        quizProgress.status = "In Progress";
+        quizProgress.score = 0;
+        quizProgress.progress = 0;
+        quizProgress.startDate = new Date();
+        quizProgress.completionDate = null;
+      }
+
+      // Update the lastAttemptDate
       quizProgress.lastAttemptDate = new Date();
       await quizProgress.save();
     }

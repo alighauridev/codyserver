@@ -26,6 +26,7 @@ const User = require("./models/userModel");
 const { Question } = require("./models/quizModel");
 const QuizProgress = require("./models/quizProgress");
 const userModel = require("./models/userModel");
+const EnrolledCourse = require("./models/enrolledCourse");
 require("dotenv").config();
 const app = express();
 app.use(express.static(path.join(__dirname, "public")));
@@ -151,14 +152,14 @@ app.listen(PORT, async () => {
   // await userModel.findByIdAndUpdate(userId, {
   //   $set: { quizProgress: [] },
   // });
-  // await EnrolledCourse.deleteMany({
-  //   user: userId,
-  // });
+  await EnrolledCourse.deleteMany({
+    user: userId,
+  });
 
-  // await userModel.findByIdAndUpdate(userId, {
-  //   $set: {
-  //     enrolledCourses: [],
-  //   },
-  // });
+  await userModel.findByIdAndUpdate(userId, {
+    $set: {
+      enrolledCourses: [],
+    },
+  });
   console.log(`Server is running on port ${PORT}`);
 });

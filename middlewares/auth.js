@@ -1,29 +1,104 @@
 const jwt = require("jsonwebtoken");
-const ErrorHandler = require("../utils/ErrorHandler");
 const User = require("../models/userModel");
+const NodeCache = require("node-cache");
+
+const userCache = new NodeCache({
+  stdTTL: 3600,
+  checkperiod: 600,
+  useClones: false,
+});
+
+const getUserById = async (userId) => {
+  try {
+    let user = userCache.get(userId);
+
+    if (user) {
+      return user;
+    }
+    user = await User.findById(userId);
+
+    if (user) {
+      userCache.set(userId, user);
+    }
+
+    return user;
+  } catch (error) {
+    console.error("Cache error:", error);
+    return await User.findById(userId);
+  }
+};
 
 const isAuthenticated = async (req, res, next) => {
   try {
     const authToken = req.headers.authorization;
-    console.log({ req });
+
     if (!authToken) {
-      return next(new ErrorHandler("No token provided", 400));
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: "AUTH_NO_TOKEN",
+          message: "Please login to access this resource",
+        },
+      });
     }
 
-    const token = authToken.split(" ")[1];
+    // Validate token format
+    const [bearer, token] = authToken.split(" ");
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id);
-    console.log({ userId: req.user._id });
-
-    if (!req.user) {
-      return next(new ErrorHandler("Unauthorized User", 400));
+    if (bearer !== "Bearer" || !token) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: "AUTH_INVALID_FORMAT",
+          message: "Invalid authorization format",
+        },
+      });
     }
 
-    next();
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const user = await getUserById(decoded.id);
+
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: "AUTH_USER_NOT_FOUND",
+            message: "User not found",
+          },
+        });
+      }
+
+      req.user = user;
+      next();
+    } catch (error) {
+      if (error.name === "TokenExpiredError") {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: "AUTH_TOKEN_EXPIRED",
+            message: "Token has expired",
+          },
+        });
+      }
+
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: "AUTH_INVALID_TOKEN",
+          message: "Invalid token",
+        },
+      });
+    }
   } catch (error) {
-    console.error("Authentication error:", error);
-    return next(new ErrorHandler(error, 400));
+    console.error("Auth error:", error);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: "AUTH_SERVER_ERROR",
+        message: "Authentication error occurred",
+      },
+    });
   }
 };
 

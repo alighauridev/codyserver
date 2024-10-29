@@ -91,17 +91,18 @@ router.post("/login", async (req, res, next) => {
       expiresIn: "10m",
     });
 
-    return res.status(403).json({
+    return res.status(201).json({
       success: false,
       message:
         "Account not verified. A new verification code has been sent to your email.",
       otpToken,
+      user: null,
     });
   }
 
   const token = user.getJWTToken();
 
-  const loggedInUser = await User.findById(user._id);
+  const loggedInUser = await User.findById(user._id).select("");
 
   res.status(200).json({
     success: true,
@@ -397,6 +398,7 @@ router.get(
     }
   })
 );
+
 router.get("/mycourses/:userId", async (req, res) => {
   try {
     // Find the user by ID
@@ -452,6 +454,7 @@ router.get("/mycourses/:userId", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
 router.get("/topcourses/:userId", async (req, res) => {
   try {
     // Find the user by ID
