@@ -301,7 +301,7 @@ router.get(
       Course.find({})
         .populate("category")
         .limit(Number(limit))
-        .sort({ createdAt: -1 }), // Changed from publishedAt to createdAt
+        .sort({ createdAt: -1 }),
       Course.countDocuments(),
     ]);
 
