@@ -3,19 +3,26 @@ const puppeteer = require("puppeteer");
 const User = require("../models/userModel");
 const Certificate = require("../models/certificate");
 const router = express.Router();
+const fs = require("fs").promises;
+const path = require("path");
+const os = require("os");
+const { uploadCloudinary } = require("../utils/cloudinary");
+const isAuthenticated = require("../middlewares/auth");
 const puppeteerLaunchOptions = {
   headless: "new",
   args: [
     "--no-sandbox",
     "--disable-setuid-sandbox",
     "--disable-dev-shm-usage",
-    "--disable-accelerated-2d-canvas",
-    "--no-first-run",
-    "--no-zygote",
-    "--single-process",
     "--disable-gpu",
+    "--font-render-hinting=none", // Helps with font rendering
+    "--disable-web-security", // Helps with loading external resources
   ],
-  timeout: 120000,
+  executablePath:
+    process.platform === "win32"
+      ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" // Windows path
+      : "/usr/bin/google-chrome", // Linux path
+  timeout: 30000,
 };
 router.post("/generate", async (req, res) => {
   try {
@@ -48,24 +55,45 @@ router.post("/generate", async (req, res) => {
   }
 });
 
-// Get all certificates
-router.get("/", async (req, res) => {
+// Helper function for temporary file management
+async function createTempFile(buffer, extension) {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "certificate-"));
+  const tempFilePath = path.join(tempDir, `temp.${extension}`);
+  await fs.writeFile(tempFilePath, buffer);
+  return { tempFilePath, tempDir };
+}
+
+async function cleanupTempFiles(tempDir) {
   try {
-    const certificates = await Certificate.find();
-    res.json(certificates);
+    await fs.rm(tempDir, { recursive: true });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Error cleaning up temp files:", error);
   }
-});
+}
+
+// Get all certificates
+// router.get("/", async (req, res) => {
+//   try {
+//     const certificates = await Certificate.find();
+//     res.json(certificates);
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// });
 
 // Get a specific certificate
 router.get("/:id", async (req, res) => {
+  console.log("certificate route is working");
+
   try {
-    const certificate = await Certificate.findById(req.params.id);
+    const certificate = await Certificate.findOne({
+      courseId: req.params.id,
+      userId: req.query.userId,
+    });
     if (certificate == null) {
       return res.status(404).json({ message: "Certificate not found" });
     }
-    res.json(certificate);
+    res.json({ certificate });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -229,44 +257,84 @@ router.get("/", async (req, res) => {
 
 router.get("/download-pdf", async (req, res) => {
   const { name, course, date, duration } = req.query;
-  let browser;
-  try {
-    browser = await puppeteer.launch(puppeteerLaunchOptions);
-    const page = await browser.newPage();
+  let browser = null;
+  let page = null;
 
+  try {
+    // Launch browser
+    browser = await puppeteer.launch(puppeteerLaunchOptions);
+
+    // Create new page
+    page = await browser.newPage();
+
+    // Set viewport
+    await page.setViewport({
+      width: 800,
+      height: 600,
+      deviceScaleFactor: 2, // Higher resolution
+    });
+
+    // Set content with waiting for network idle
     await page.setContent(
-      generateCertificateHtml(name, course, date, duration)
+      generateCertificateHtml(name, course, date, duration),
+      {
+        waitUntil: ["load", "networkidle0"],
+        timeout: 30000,
+      }
     );
 
-    const element = await page.$("#certificate");
-    const boundingBox = await element.boundingBox();
+    // Wait for the certificate element to be rendered
+    await page.waitForSelector("#certificate", { timeout: 5000 });
 
-    // Set the page size to match the certificate size
-    await page.setViewport({
-      width: Math.ceil(boundingBox.width),
-      height: Math.ceil(boundingBox.height),
-      deviceScaleFactor: 1,
-    });
-
+    // Generate PDF with specific options
     const pdf = await page.pdf({
-      width: Math.ceil(boundingBox.width + 50),
-      height: Math.ceil(boundingBox.height + 50),
+      format: "A4",
       printBackground: true,
-      margin: { top: 0, right: 0, bottom: 0, left: 0 },
-      scale: 1,
+      margin: {
+        top: "20px",
+        right: "20px",
+        bottom: "20px",
+        left: "20px",
+      },
+      preferCSSPageSize: true,
+      scale: 0.8,
+    });
+    console.log({
+      pdf,
     });
 
+    // Set response headers
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=${encodeURIComponent(name)}_certificate.pdf`
+      `attachment; filename="${encodeURIComponent(name)}_certificate.pdf"`
     );
+
+    // Send PDF
     res.send(pdf);
   } catch (error) {
-    console.error("Error generating PDF:", error);
-    res.status(500).send("Error generating PDF");
+    console.error("Detailed PDF generation error:", error);
+    res.status(500).json({
+      error: "PDF generation failed",
+      details: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
   } finally {
-    if (browser) await browser.close();
+    // Clean up
+    if (page) {
+      try {
+        await page.close();
+      } catch (e) {
+        console.error("Error closing page:", e);
+      }
+    }
+    if (browser) {
+      try {
+        await browser.close();
+      } catch (e) {
+        console.error("Error closing browser:", e);
+      }
+    }
   }
 });
 
@@ -294,19 +362,126 @@ router.get("/download-jpg", async (req, res) => {
       type: "jpeg",
       quality: 100,
       clip: boundingBox,
+      encoding: "base64",
     });
 
-    res.setHeader("Content-Type", "image/jpeg");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename=${encodeURIComponent(name)}_certificate.jpg`
-    );
-    res.send(screenshot);
+    // res.setHeader("Content-Type", "image/jpeg");
+    // res.setHeader(
+    //   "Content-Disposition",
+    //   `attachment; filename=${encodeURIComponent(name)}_certificate.jpg`
+    // );
+    console.log({ screenshot });
+
+    res.send({ screenshot });
   } catch (error) {
     console.error("Detailed error:", error);
     res.status(500).send(`Error generating JPG: ${error.message}`);
   } finally {
     if (browser) await browser.close();
+  }
+});
+
+router.post("/generate-png", async (req, res) => {
+  const { name, course, date, duration, userId } = req.query;
+  let browser = null;
+  let page = null;
+  let tempDir = null;
+
+  try {
+    browser = await puppeteer.launch(puppeteerLaunchOptions);
+    page = await browser.newPage();
+
+    // Set viewport for high-resolution PNG
+    await page.setViewport({
+      width: 1000,
+      height: 700,
+      deviceScaleFactor: 2, // Higher resolution
+    });
+
+    // Set content with transparent background
+    await page.setContent(
+      generateCertificateHtml(name, course, date, duration),
+      {
+        waitUntil: ["load", "networkidle0"],
+        timeout: 30000,
+      }
+    );
+
+    await page.waitForSelector("#certificate", { timeout: 5000 });
+
+    // Generate PNG with transparency
+    const pngBuffer = await page.screenshot({
+      type: "png",
+      omitBackground: true, // Enable transparency
+      fullPage: true,
+      encoding: "binary",
+      captureBeyondViewport: true,
+    });
+
+    // Create temporary file
+    const { tempFilePath, tempDir: newTempDir } = await createTempFile(
+      pngBuffer,
+      "png"
+    );
+    tempDir = newTempDir;
+
+    // Upload to Cloudinary with PNG-specific options
+    const cloudinaryResponse = await uploadCloudinary(
+      tempFilePath,
+      "certificates/png",
+      {
+        resource_type: "image",
+        public_id: `certificate_${userId}_png_${Date.now()}`,
+        format: "png",
+        quality: 100,
+        flags: "preserve_transparency",
+        tags: ["certificate", "png"],
+      }
+    );
+
+    // // Update or create certificate record
+    // if (userId) {
+    //   await Certificate.findOneAndUpdate(
+    //     { userId },
+    //     {
+    //       $set: {
+    //         pngUrl: cloudinaryResponse.secure_url,
+    //         pngPublicId: cloudinaryResponse.public_id,
+    //         name,
+    //         course,
+    //         date,
+    //         duration,
+    //         lastUpdated: new Date()
+    //       }
+    //     },
+    //     { new: true, upsert: true }
+    //   );
+    // }
+
+    res.json({
+      success: true,
+      message: "PNG Certificate generated successfully",
+      certificate: {
+        url: cloudinaryResponse.secure_url,
+        publicId: cloudinaryResponse.public_id,
+        width: cloudinaryResponse.width,
+        height: cloudinaryResponse.height,
+        format: "png",
+        size: cloudinaryResponse.bytes,
+      },
+    });
+  } catch (error) {
+    console.error("PNG Certificate generation error:", error);
+    res.status(500).json({
+      error: "PNG Certificate generation failed",
+      details: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
+  } finally {
+    // Cleanup resources
+    if (page) await page.close().catch(console.error);
+    if (browser) await browser.close().catch(console.error);
+    if (tempDir) await cleanupTempFiles(tempDir).catch(console.error);
   }
 });
 

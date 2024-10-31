@@ -11,6 +11,7 @@ const EnrolledCourse = require("../../models/enrolledCourse");
 const isAuthenticated = require("../../middlewares/auth");
 const userModel = require("../../models/userModel");
 const Streak = require("../../models/streak");
+const Certificate = require("../../models/certificate");
 
 const populateFields = (query, fields) => {
   if (fields.includes("topics")) {
@@ -716,6 +717,30 @@ router.patch(
     if (enrolledCourse.progress === 100 && !enrolledCourse.completionDate) {
       enrolledCourse.completionDate = new Date();
       isCourseNewlyCompleted = true;
+      const existingCertificate = await Certificate.findOne({
+        userId: userId,
+        courseId: course._id,
+      });
+
+      if (!existingCertificate) {
+        const certificateNumber =
+          "UC-" + Math.random().toString(36).substr(2, 9);
+        const referenceNumber = Math.floor(
+          1000 + Math.random() * 9000
+        ).toString();
+        console.log("Certificate Create");
+
+        await Certificate.create({
+          courseId: course?._id,
+          userId: userId,
+          issueDate: Date.now(),
+          certificateNumber,
+          courseDuration: course.duration,
+          courseName: course.title,
+          userName: req.user.name,
+          referenceNumber,
+        });
+      }
     }
 
     // Save the changes

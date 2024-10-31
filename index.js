@@ -27,6 +27,7 @@ const { Question } = require("./models/quizModel");
 const QuizProgress = require("./models/quizProgress");
 const userModel = require("./models/userModel");
 const EnrolledCourse = require("./models/enrolledCourse");
+const Certificate = require("./models/certificate");
 require("dotenv").config();
 const app = express();
 app.use(express.static(path.join(__dirname, "public")));
@@ -114,7 +115,8 @@ app.use(
   reviewsv2,
   lessons_quizes,
   bookmarksv2,
-  challenges
+  challenges,
+  certificateRoutes
 );
 
 app.use((err, req, res, next) => {
@@ -144,19 +146,22 @@ app.listen(PORT, async () => {
   // })
   // await EnrolledCourse.deleteMany();
   const userId = "66cefb5a0629ecb1db8efca1";
-  const courseId = "66d4480beb49f0c20f0bcde6";
+  const courseId = "66dae1ca7cb2872f16214b25";
+  const certificate = await Certificate.findOne({ userId, courseId });
+  console.log({ certificate });
+
   // await QuizProgress.deleteMany();
   // await userModel.findByIdAndUpdate(userId, {
   //   $set: { quizProgress: [] },
   // });
-  await EnrolledCourse.deleteMany({
-    user: userId,
-  });
+  // await EnrolledCourse.deleteMany({
+  //   user: userId,
+  // });
 
-  await userModel.findByIdAndUpdate(userId, {
-    $set: {
-      enrolledCourses: [],
-    },
-  });
+  // await userModel.findByIdAndUpdate(userId, {
+  //   $set: {
+  //     enrolledCourses: [],
+  //   },
+  // });
   console.log(`Server is running on port ${PORT}`);
 });

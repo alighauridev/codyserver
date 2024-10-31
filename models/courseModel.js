@@ -22,7 +22,7 @@ const courseSchema = new mongoose.Schema(
     },
     certificate: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     coverImage: {
       type: String,
