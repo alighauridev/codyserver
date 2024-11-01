@@ -4,7 +4,7 @@
   "main": "./index.js",
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "set NODE_ENV=production & node index.js"
   },
   "author": "Ali",
   "license": "ISC",

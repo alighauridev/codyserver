@@ -28,6 +28,11 @@ const QuizProgress = require("./models/quizProgress");
 const userModel = require("./models/userModel");
 const EnrolledCourse = require("./models/enrolledCourse");
 const Certificate = require("./models/certificate");
+
+const isProduction = process.env.NODE_ENV?.trim() === "production";
+const mongodbURL = isProduction
+  ? process.env.PRODUCTION_MONGODB_URL
+  : process.env.DEVELOPMENT_MONGODB_URL;
 require("dotenv").config();
 const app = express();
 app.use(express.static(path.join(__dirname, "public")));
@@ -35,7 +40,7 @@ app.use(cors()); // Use CORS with default options - allows all origins
 app.use(bodyParser.json());
 
 mongoose
-  .connect(process.env.MONGODB_URI, {
+  .connect(mongodbURL, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
     serverSelectionTimeoutMS: 30000,
@@ -147,8 +152,8 @@ app.listen(PORT, async () => {
   // await EnrolledCourse.deleteMany();
   const userId = "66cefb5a0629ecb1db8efca1";
   const courseId = "66dae1ca7cb2872f16214b25";
-  const certificate = await Certificate.findOne({ userId, courseId });
-  console.log({ certificate });
+  // const certificate = await Certificate.findOne({ userId, courseId });
+  // console.log({ certificate });
 
   // await QuizProgress.deleteMany();
   // await userModel.findByIdAndUpdate(userId, {
