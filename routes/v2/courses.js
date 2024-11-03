@@ -749,14 +749,22 @@ router.patch(
     // Update streak
     if (isNewlyCompleted || isCourseNewlyCompleted) {
       const streak = await Streak.getOrCreateStreak(userId);
+      let studyHours = 0;
+      if (isNewlyCompleted) {
+        const lessonTopic = course.topics.find((t) =>
+          t.lessons.some((l) => l._id.toString() === lessonId)
+        );
+        if (lessonTopic) {
+          const lessonDuration = lessonTopic.duration || 0;
+          // Convert minutes to hours and round to 2 decimal places
+          studyHours = Math.round((lessonDuration / 60) * 100) / 100;
+        }
+      }
       await streak.updateStreak(
         new Date(),
-        isNewlyCompleted ? 1 : 0, // lessonsCompleted
-        isCourseNewlyCompleted ? 1 : 0, // coursesCompleted
-        isNewlyCompleted
-          ? course.topics.find((t) => t.lessons.includes(lessonId))?.duration /
-              60 || 0
-          : 0 // studyHours (assuming duration is in minutes)
+        isNewlyCompleted ? 1 : 0,
+        isCourseNewlyCompleted ? 1 : 0,
+        studyHours
       );
     }
 

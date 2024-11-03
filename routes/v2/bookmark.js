@@ -12,7 +12,7 @@ router.post(
   "/bookmarks",
   asyncHandler(async (req, res, next) => {
     const { lessonId, courseId } = req.body;
-    const userId = req.user._id; // Assuming you have authentication middleware
+    const userId = req.user._id;
 
     const newBookmark = await Bookmark.create({
       user: userId,

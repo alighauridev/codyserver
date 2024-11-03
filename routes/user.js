@@ -20,6 +20,7 @@ const {
   removeFromCloudinary,
   uploadCloudinary,
 } = require("../utils/cloudinary");
+const Streak = require("../models/streak");
 router.post(
   "/signup",
   asyncErrorHandler(async (req, res, next) => {
@@ -141,9 +142,12 @@ router.post(
     user.otp = undefined;
     user.otpPurpose = undefined;
 
-    await user.save({ validateBeforeSave: false });
-    const userToken = user.getJWTToken();
+    await Promise.all([
+      user.save({ validateBeforeSave: false }),
+      Streak.getOrCreateStreak(user._id),
+    ]);
 
+    const userToken = user.getJWTToken();
     res.status(200).json({
       success: true,
       message: "Email verified successfully",
