@@ -31,8 +31,9 @@ const Certificate = require("./models/certificate");
 const LessonQuiz = require("./models/LessonQuiz");
 
 const isProduction = process.env.NODE_ENV?.trim() === "production";
-const mongodbURL =
-  "mongodb+srv://gali76682:xTgBeqc2Bs2Wdvkf@serverlessinstance0.dlbyqem.mongodb.net/?retryWrites=true&w=majority&appName=ServerlessInstance0";
+const mongodbURL = isProduction
+  ? process.env.PRODUCTION_MONGODB_URL
+  : process.env.DEVELOPMENT_MONGODB_URL;
 require("dotenv").config();
 const app = express();
 app.use(express.static(path.join(__dirname, "public")));
@@ -168,8 +169,6 @@ app.listen(PORT, async () => {
   //     enrolledCourses: [],
   //   },
   // });
-
-  // await syncQuizzesWithLessons();
 
   console.log(`Server is running on port ${PORT}`);
 });
