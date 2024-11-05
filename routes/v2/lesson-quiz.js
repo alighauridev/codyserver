@@ -28,7 +28,9 @@ router.post(
       question,
       options,
     });
-
+    await lessonModel.findByIdAndUpdate(lesson, {
+      $push: { quiz: quiz._id },
+    });
     res.status(201).json({
       success: true,
       quiz,

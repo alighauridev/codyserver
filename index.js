@@ -28,11 +28,11 @@ const QuizProgress = require("./models/quizProgress");
 const userModel = require("./models/userModel");
 const EnrolledCourse = require("./models/enrolledCourse");
 const Certificate = require("./models/certificate");
+const LessonQuiz = require("./models/LessonQuiz");
 
 const isProduction = process.env.NODE_ENV?.trim() === "production";
-const mongodbURL = isProduction
-  ? process.env.PRODUCTION_MONGODB_URL
-  : process.env.DEVELOPMENT_MONGODB_URL;
+const mongodbURL =
+  "mongodb+srv://gali76682:xTgBeqc2Bs2Wdvkf@serverlessinstance0.dlbyqem.mongodb.net/?retryWrites=true&w=majority&appName=ServerlessInstance0";
 require("dotenv").config();
 const app = express();
 app.use(express.static(path.join(__dirname, "public")));
@@ -168,5 +168,54 @@ app.listen(PORT, async () => {
   //     enrolledCourses: [],
   //   },
   // });
+
+  // await syncQuizzesWithLessons();
+
   console.log(`Server is running on port ${PORT}`);
 });
+const syncQuizzesWithLessons = async (session) => {
+  // Get all quizzes
+  const allQuizzes = await LessonQuiz.find({}).session(session);
+
+  // Get all lessons with their quiz arrays
+  const allLessons = await lessonModel.find({}).session(session);
+
+  // Create a map of lesson ID to its quizzes for easy lookup
+  const lessonQuizMap = new Map();
+  allLessons.forEach((lesson) => {
+    lessonQuizMap.set(
+      lesson._id.toString(),
+      new Set(lesson.quiz.map((quizId) => quizId.toString()))
+    );
+  });
+
+  const updates = [];
+
+  // Check each quiz and update lesson if needed
+  for (const quiz of allQuizzes) {
+    const lessonId = quiz.lesson.toString();
+    const quizId = quiz._id.toString();
+
+    // Get the lesson's current quizzes
+    const lessonQuizzes = lessonQuizMap.get(lessonId);
+
+    // If lesson doesn't exist or quiz ID is not in lesson's quiz array
+    if (!lessonQuizzes || !lessonQuizzes.has(quizId)) {
+      updates.push({
+        lessonId: quiz.lesson,
+        quizId: quiz._id,
+      });
+    }
+  }
+
+  // Perform all updates
+  for (const update of updates) {
+    await lessonModel.findByIdAndUpdate(
+      update.lessonId,
+      { $addToSet: { quiz: update.quizId } },
+      { session }
+    );
+  }
+
+  return updates.length;
+};
