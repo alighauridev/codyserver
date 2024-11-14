@@ -12,52 +12,147 @@ const router = express.Router();
 router.post(
   "/lesson-quizzes",
   asyncHandler(async (req, res, next) => {
-    const { lesson, question, options } = req.body;
+    const { lessonId, questions } = req.body;
 
     // Validate lesson existence
-    const lessonExists = await lessonModel.exists({ _id: lesson });
+    const lessonExists = await lessonModel.exists({ _id: lessonId });
     if (!lessonExists) {
       return next(new ErrorHandler("Lesson not found", 404));
     }
-    if (options.length !== 4) {
-      return next(new ErrorHandler("Must provider four option", 404));
+
+    // Validate quiz array
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return next(
+        new ErrorHandler("Please provide an array of questions", 400)
+      );
     }
 
-    const quiz = await LessonQuiz.create({
-      lesson,
-      question,
-      options,
+    // Validate each quiz
+    for (const quiz of questions) {
+      if (!quiz.question) {
+        return next(
+          new ErrorHandler("Question is required for all questions", 400)
+        );
+      }
+      if (!Array.isArray(quiz.options) || quiz.options.length !== 4) {
+        return next(
+          new ErrorHandler("Each quiz must have exactly 4 options", 400)
+        );
+      }
+      // Ensure at least one correct option
+      const hasCorrectOption = quiz.options.some((option) => option.isCorrect);
+      if (!hasCorrectOption) {
+        return next(
+          new ErrorHandler(
+            "Each quiz must have at least one correct option",
+            400
+          )
+        );
+      }
+    }
+
+    // Create all quizzes
+    const createdQuizzes = await LessonQuiz.create(
+      questions.map((quiz) => ({
+        lesson: lessonId,
+        question: quiz.question,
+        options: quiz.options,
+      }))
+    );
+
+    // Update lesson with all quiz IDs
+    await lessonModel.findByIdAndUpdate(lessonId, {
+      $push: {
+        quiz: {
+          $each: createdQuizzes.map((quiz) => quiz._id),
+        },
+      },
     });
-    await lessonModel.findByIdAndUpdate(lesson, {
-      $push: { quiz: quiz._id },
-    });
+
     res.status(201).json({
       success: true,
-      quiz,
+      count: createdQuizzes.length,
+      quizzes: createdQuizzes,
     });
   })
 );
 
-// Update a quiz
 router.put(
   "/lesson-quizzes/:id",
   asyncHandler(async (req, res, next) => {
     const { question, options } = req.body;
 
+    // Find the quiz
     const quiz = await LessonQuiz.findById(req.params.id);
-
     if (!quiz) {
       return next(new ErrorHandler("LessonQuiz not found", 404));
     }
 
-    quiz.question = question;
-    quiz.options = options;
+    // Validate question
+    if (!question || typeof question !== "string" || question.trim() === "") {
+      return next(new ErrorHandler("Question is required", 400));
+    }
 
-    await quiz.save();
+    // Validate options array
+    if (!Array.isArray(options) || options.length !== 4) {
+      return next(new ErrorHandler("Must provide exactly 4 options", 400));
+    }
+
+    // Validate option structure
+    for (const option of options) {
+      if (
+        !option.optionText ||
+        typeof option.optionText !== "string" ||
+        option.optionText.trim() === ""
+      ) {
+        return next(new ErrorHandler("Each option must have text", 400));
+      }
+      if (typeof option.isCorrect !== "boolean") {
+        return next(
+          new ErrorHandler("Each option must specify if it's correct", 400)
+        );
+      }
+    }
+
+    // Ensure at least one correct option
+    const hasCorrectOption = options.some((option) => option.isCorrect);
+    if (!hasCorrectOption) {
+      return next(
+        new ErrorHandler("Must have at least one correct option", 400)
+      );
+    }
+
+    // Ensure not more than one correct option
+    const correctOptionsCount = options.filter(
+      (option) => option.isCorrect
+    ).length;
+    if (correctOptionsCount > 1) {
+      return next(
+        new ErrorHandler("Cannot have more than one correct option", 400)
+      );
+    }
+
+    // Update the quiz
+    const updatedQuiz = await LessonQuiz.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          question: question.trim(),
+          options: options.map((opt) => ({
+            optionText: opt.optionText.trim(),
+            isCorrect: opt.isCorrect,
+          })),
+        },
+      },
+      {
+        new: true, // Return updated document
+        runValidators: true, // Run model validators
+      }
+    );
 
     res.status(200).json({
       success: true,
-      quiz,
+      quiz: updatedQuiz,
     });
   })
 );
