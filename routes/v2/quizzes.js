@@ -8,18 +8,7 @@ const User = require("../../models/userModel");
 const router = express.Router();
 
 const calculateQuizTime = (questions) => {
-  const baseTimePerQuestion = 2;
-  const additionalTimePerOption = 0.5;
-
-  let totalTime = questions.reduce((acc, question) => {
-    return (
-      acc +
-      baseTimePerQuestion +
-      question.options.length * additionalTimePerOption
-    );
-  }, 0);
-
-  return Math.ceil(totalTime);
+  return Math.ceil(40);
 };
 
 router.post(

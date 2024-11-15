@@ -23,12 +23,13 @@ const lessonModel = require("./models/lessonModel");
 const courseModel = require("./models/courseModel");
 const Streak = require("./models/streak");
 const User = require("./models/userModel");
-const { Question } = require("./models/quizModel");
+const { Question, Quiz } = require("./models/quizModel");
 const QuizProgress = require("./models/quizProgress");
 const userModel = require("./models/userModel");
 const EnrolledCourse = require("./models/enrolledCourse");
 const Certificate = require("./models/certificate");
 const LessonQuiz = require("./models/LessonQuiz");
+const moment = require("moment");
 
 const isProduction = process.env.NODE_ENV?.trim() === "production";
 const mongodbURL = isProduction
@@ -134,7 +135,6 @@ app.use((err, req, res, next) => {
     message,
   });
 });
-// mongoose.connection.collection("questions").drop();
 const PORT = 3001;
 app.listen(PORT, async () => {
   // await streak.deleteMany();
@@ -155,7 +155,7 @@ app.listen(PORT, async () => {
   const courseId = "66dae1ca7cb2872f16214b25";
   // const certificate = await Certificate.findOne({ userId, courseId });
   // console.log({ certificate });
-
+  await fixStreakQuery();
   // await QuizProgress.deleteMany();
   // await userModel.findByIdAndUpdate(userId, {
   //   $set: { quizProgress: [] },
@@ -217,4 +217,79 @@ const syncQuizzesWithLessons = async (session) => {
   }
 
   return updates.length;
+};
+
+const fixStreakQuery = async () => {
+  const streaks = await Streak.find({});
+
+  for (const streak of streaks) {
+    // Sort activities by date
+    const sortedActivities = streak.dailyActivities.sort(
+      (a, b) => new Date(a.date) - new Date(b.date)
+    );
+
+    let currentStreak = 0;
+    let longestStreak = 0;
+    let consecutiveDays = 0;
+    let lastActivityDate = null;
+
+    // Calculate correct streaks
+    for (let i = 0; i < sortedActivities.length; i++) {
+      const activity = sortedActivities[i];
+      const activityDate = moment(activity.date).startOf("day");
+
+      if (i === 0) {
+        consecutiveDays = 1;
+        lastActivityDate = activity.date;
+      } else {
+        const prevActivity = sortedActivities[i - 1];
+        const prevDate = moment(prevActivity.date).startOf("day");
+        const daysDiff = activityDate.diff(prevDate, "days");
+
+        if (daysDiff === 1) {
+          consecutiveDays++;
+        } else if (daysDiff === 0) {
+          // Same day activity, continue streak
+          continue;
+        } else {
+          // Break in streak, start new streak
+          consecutiveDays = 1;
+        }
+        lastActivityDate = activity.date;
+      }
+
+      currentStreak = consecutiveDays;
+      if (currentStreak > longestStreak) {
+        longestStreak = currentStreak;
+      }
+    }
+
+    // Check if current streak is still active (no more than 1 day gap from last activity)
+    const lastActivityMoment = moment(lastActivityDate).startOf("day");
+    const today = moment().startOf("day");
+    const daysSinceLastActivity = today.diff(lastActivityMoment, "days");
+
+    // If more than 1 day has passed, reset current streak
+    if (daysSinceLastActivity > 1) {
+      currentStreak = 0;
+    }
+
+    // Update the streak document
+    await Streak.findByIdAndUpdate(streak._id, {
+      $set: {
+        currentStreak,
+        longestStreak,
+        lastActivityDate,
+      },
+    });
+
+    console.log(`Fixed streak for user ${streak.userId}:`, {
+      currentStreak,
+      longestStreak,
+      lastActivityDate: lastActivityDate
+        ? moment(lastActivityDate).format("YYYY-MM-DD")
+        : null,
+      activitiesCount: sortedActivities.length,
+    });
+  }
 };

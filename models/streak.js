@@ -89,6 +89,7 @@ const streakSchema = new mongoose.Schema(
 
 streakSchema.index({ userId: 1, "dailyActivities.date": 1 });
 
+// Updated updateStreak method
 streakSchema.methods.updateStreak = async function (
   activityDate,
   lessonsCompleted,
@@ -105,6 +106,7 @@ streakSchema.methods.updateStreak = async function (
   );
 
   if (!dailyActivity) {
+    // Create new activity for the day
     dailyActivity = {
       date: today,
       lessonsCompleted: 0,
@@ -113,10 +115,46 @@ streakSchema.methods.updateStreak = async function (
     };
     this.dailyActivities.push(dailyActivity);
 
-    // ... streak calculation code remains the same ...
+    // Calculate streak - now ignoring activity values
+    if (!this.lastActivityDate) {
+      // First ever activity
+      this.currentStreak = 1;
+    } else {
+      const lastDate = moment(this.lastActivityDate).startOf("day");
+      const currentDate = moment(today).startOf("day");
+      const daysDiff = currentDate.diff(lastDate, "days");
+
+      if (daysDiff === 1) {
+        // Consecutive day - increment streak
+        this.currentStreak++;
+      } else if (daysDiff === 0) {
+        // Same day - maintain streak
+      } else {
+        // Gap in days - reset streak
+        this.currentStreak = 1;
+      }
+    }
+
+    // Update last activity date for new days only
+    const currentMoment = moment(today).startOf("day");
+    const lastActivityMoment = this.lastActivityDate
+      ? moment(this.lastActivityDate).startOf("day")
+      : null;
+
+    if (
+      !lastActivityMoment ||
+      !currentMoment.isSame(lastActivityMoment, "day")
+    ) {
+      this.lastActivityDate = today;
+    }
+
+    // Update longest streak
+    if (this.currentStreak > this.longestStreak) {
+      this.longestStreak = this.currentStreak;
+    }
   }
 
-  // Update daily activity
+  // Update daily activity values
   dailyActivity.lessonsCompleted += parseInt(lessonsCompleted) || 0;
   dailyActivity.coursesCompleted += parseInt(coursesCompleted) || 0;
   dailyActivity.studyHours = formatNumber.round(
@@ -128,7 +166,7 @@ streakSchema.methods.updateStreak = async function (
   this.totalCoursesCompleted += parseInt(coursesCompleted) || 0;
   this.totalStudyHours = formatNumber.round(this.totalStudyHours + studyHours);
 
-  // Find and update in array
+  // Update in array
   const index = this.dailyActivities.findIndex(
     (activity) => activity.date.getTime() === today.getTime()
   );
@@ -136,8 +174,7 @@ streakSchema.methods.updateStreak = async function (
     this.dailyActivities[index] = dailyActivity;
   }
 
-  await this.checkAndUpdateAchievements();
-  await this.save();
+  await Promise.all([this.checkAndUpdateAchievements(), this.save()]);
   return this;
 };
 
@@ -232,6 +269,8 @@ streakSchema.methods.getYearlyStreakData = function (year = null) {
 
     const dailyData = [];
     let monthlyStudyHours = 0;
+    let monthlyLessonsCompleted = 0;
+    let monthlyCoursesCompleted = 0;
 
     for (let day = 1; day <= currentMonth.daysInMonth(); day++) {
       const currentDate = moment(
@@ -250,17 +289,21 @@ streakSchema.methods.getYearlyStreakData = function (year = null) {
         const dailyStudyHours = activity
           ? formatNumber.round(activity.studyHours)
           : 0;
+        const dailyLessonsCompleted = activity ? activity.lessonsCompleted : 0;
+        const dailyCoursesCompleted = activity ? activity.coursesCompleted : 0;
+
+        // Activity is true if an activity record exists
+        const hasActivity = activity !== undefined;
+
         monthlyStudyHours += dailyStudyHours;
+        monthlyLessonsCompleted += dailyLessonsCompleted;
+        monthlyCoursesCompleted += dailyCoursesCompleted;
 
         dailyData.push({
           date: currentDate.format("YYYY-MM-DD"),
-          hasActivity: activity
-            ? activity.lessonsCompleted > 0 ||
-              activity.coursesCompleted > 0 ||
-              dailyStudyHours > 0
-            : false,
-          lessonsCompleted: activity ? activity.lessonsCompleted : 0,
-          coursesCompleted: activity ? activity.coursesCompleted : 0,
+          hasActivity,
+          lessonsCompleted: dailyLessonsCompleted,
+          coursesCompleted: dailyCoursesCompleted,
           studyHours: dailyStudyHours,
         });
       }
@@ -269,15 +312,9 @@ streakSchema.methods.getYearlyStreakData = function (year = null) {
     monthlyData.push({
       month: currentMonth.format("YYYY-MM"),
       activeDays: dailyData.filter((day) => day.hasActivity).length,
-      totalDays: currentMonth.daysInMonth(),
-      lessonsCompleted: dailyData.reduce(
-        (sum, day) => sum + day.lessonsCompleted,
-        0
-      ),
-      coursesCompleted: dailyData.reduce(
-        (sum, day) => sum + day.coursesCompleted,
-        0
-      ),
+      totalDays: dailyData.length,
+      lessonsCompleted: monthlyLessonsCompleted,
+      coursesCompleted: monthlyCoursesCompleted,
       studyHours: formatNumber.round(monthlyStudyHours),
       dailyData,
     });
