@@ -151,11 +151,19 @@ app.listen(PORT, async () => {
   // });
   // })
   // await EnrolledCourse.deleteMany();
-  const userId = "66cefb5a0629ecb1db8efca1";
-  const courseId = "66dae1ca7cb2872f16214b25";
+  const userId = "6717849d0b5962e36c1d84be";
+  const courseId = "6716e7ed3f14a9453307c633";
+  // const course = await EnrolledCourse.findOneAndDelete({
+  //   user: userId,
+  //   course: courseId,
+  // });
+
+  // await userModel.findByIdAndUpdate(userId, {
+  //   $set: { quizProgress: [] },
+  // });
   // const certificate = await Certificate.findOne({ userId, courseId });
   // console.log({ certificate });
-  await fixStreakQuery();
+  // await fixStreakQuery();
   // await QuizProgress.deleteMany();
   // await userModel.findByIdAndUpdate(userId, {
   //   $set: { quizProgress: [] },

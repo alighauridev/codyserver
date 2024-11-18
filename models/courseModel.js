@@ -103,36 +103,48 @@ courseSchema.methods.updateOverallRating = async function (newRating) {
 
 // Static method to calculate and update the overall rating
 courseSchema.statics.calculateAverageRating = async function (courseId) {
-  const stats = await this.aggregate([
-    { $match: { _id: courseId } },
-    {
-      $lookup: {
-        from: "reviews",
-        localField: "reviews",
-        foreignField: "_id",
-        as: "reviewsData",
-      },
-    },
-    { $unwind: "$reviewsData" },
-    {
-      $group: {
-        _id: "$_id",
-        averageRating: { $avg: "$reviewsData.rating" },
-        numberOfRatings: { $sum: 1 },
-      },
-    },
-  ]);
+  try {
+    const course = await this.findById(courseId);
+    if (!course) return;
 
-  if (stats.length > 0) {
-    await this.findByIdAndUpdate(courseId, {
-      overallRating: stats[0].averageRating,
-      numberOfRatings: stats[0].numberOfRatings,
+    const stats = await this.aggregate([
+      {
+        $match: { _id: mongoose.Types.ObjectId(courseId) },
+      },
+      {
+        $lookup: {
+          from: "reviews",
+          localField: "reviews",
+          foreignField: "_id",
+          as: "reviewsData",
+        },
+      },
+      {
+        $unwind: "$reviewsData",
+      },
+      {
+        $group: {
+          _id: "$_id",
+          averageRating: { $avg: "$reviewsData.rating" },
+          numberOfRatings: { $sum: 1 },
+        },
+      },
+    ]);
+
+    if (stats.length > 0) {
+      course.overallRating = Math.round(stats[0].averageRating * 10) / 10; // Round to 1 decimal place
+      course.numberOfRatings = stats[0].numberOfRatings;
+    } else {
+      course.overallRating = 0;
+      course.numberOfRatings = 0;
+    }
+
+    await course.save({
+      validateBeforeSave: false,
     });
-  } else {
-    await this.findByIdAndUpdate(courseId, {
-      overallRating: 0,
-      numberOfRatings: 0,
-    });
+    return course;
+  } catch (error) {
+    console.error("Error calculating average rating:", error);
   }
 };
 

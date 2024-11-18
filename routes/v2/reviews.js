@@ -11,36 +11,65 @@ const isValidMongoId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 // Helper function to validate rating
 const isValidRating = (rating) => !isNaN(rating) && rating >= 1 && rating <= 5;
+
 // Create a new review
 router.post(
   "/reviews",
   isAuthenticated,
   asyncHandler(async (req, res, next) => {
     const { courseId, rating, content } = req.body;
+
+    // Validation
     if (!courseId || !rating || !content) {
       return next(new ErrorHandler("Please provide all fields", 400));
     }
-    const newReview = new Review({
+
+    if (!isValidRating(rating)) {
+      return next(new ErrorHandler("Rating must be between 1 and 5", 400));
+    }
+
+    // Check if course exists
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return next(new ErrorHandler("Course not found", 404));
+    }
+
+    // Check if user has already reviewed this course
+    const existingReview = await Review.findOne({
       course: courseId,
       user: req.user._id,
-      rating,
-      content,
     });
 
-    const savedReview = await newReview.save();
+    if (existingReview) {
+      return next(
+        new ErrorHandler("You have already reviewed this course", 400)
+      );
+    }
 
-    // Update course rating
-    await Promise.all([
-      Course.findByIdAndUpdate(courseId, {
-        $push: { reviews: savedReview._id },
-      }),
-      Course.calculateAverageRating(courseId),
-    ]);
+    try {
+      // Create and save the new review
+      const newReview = new Review({
+        course: courseId,
+        user: req.user._id,
+        rating,
+        content,
+      });
+      await newReview.save();
 
-    res.status(201).json({
-      success: true,
-      message: "Review Created Successfully",
-    });
+      // Update course reviews array
+      course.reviews.push(newReview._id);
+      await course.save();
+
+      // Calculate and update the course's rating
+      await Course.calculateAverageRating(courseId);
+
+      res.status(201).json({
+        success: true,
+        message: "Review Created Successfully",
+      });
+    } catch (error) {
+      return next(new ErrorHandler("Error creating review", 500));
+    }
   })
 );
 
