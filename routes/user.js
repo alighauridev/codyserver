@@ -21,6 +21,8 @@ const {
   uploadCloudinary,
 } = require("../utils/cloudinary");
 const Streak = require("../models/streak");
+
+// Register Api
 router.post(
   "/signup",
   asyncErrorHandler(async (req, res, next) => {
@@ -29,7 +31,9 @@ router.post(
       return next(new ErrorHandler("Please Enter all fields", 400));
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email })
+      .select("email name")
+      .lean();
     if (existingUser) {
       return next(new ErrorHandler("Email is already in use", 401));
     }
@@ -55,7 +59,7 @@ router.post(
     });
   })
 );
-
+//Login Api
 router.post("/login", async (req, res, next) => {
   const { email, password } = req.body;
 
@@ -63,7 +67,9 @@ router.post("/login", async (req, res, next) => {
     return next(new ErrorHandler("Please Enter all fields", 400));
   }
 
-  const user = await User.findOne({ email }).select("+password");
+  const user = await User.findOne({ email }).select(
+    "+password -quizProgress -enrolledCourses"
+  );
 
   if (!user || user.provider !== LoginProviders.EMAIL_PASSWORD) {
     return next(new ErrorHandler("Invalid Email or Password", 401));
@@ -103,9 +109,9 @@ router.post("/login", async (req, res, next) => {
 
   const token = user.getJWTToken();
 
-  const loggedInUser = await User.findById(user._id).select(
-    "-quizProgress -enrolledCourses"
-  );
+  const loggedInUser = await User.findById(user._id)
+    .select("-quizProgress -enrolledCourses")
+    .lean();
 
   res.status(200).json({
     success: true,
@@ -156,7 +162,7 @@ router.post(
     });
   })
 );
-
+// Request Api
 router.post(
   "/request-otp",
   asyncErrorHandler(async (req, res) => {
@@ -191,6 +197,7 @@ router.post(
     });
   })
 );
+//Social Login Api
 router.post(
   "/social-login",
   asyncErrorHandler(async (req, res, next) => {
@@ -208,7 +215,9 @@ router.post(
       return next(new ErrorHandler("Invalid provider", 400));
     }
 
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ email }).select(
+      "-quizProgress -enrolledCourses"
+    );
 
     if (user) {
       if (user.provider !== mappedProvider) {
@@ -220,9 +229,9 @@ router.post(
         );
       }
 
-      if (user.providerId !== providerId) {
-        return next(new ErrorHandler("Authentication failed", 401));
-      }
+      // if (user.providerId !== providerId) {
+      //   return next(new ErrorHandler("Authentication failed", 401));
+      // }
     } else {
       user = new User({
         name,
@@ -321,7 +330,7 @@ router.post(
     }
 
     const user = await User.findById(decoded.id).select(
-      "+otp.code +otp.expiry +otpPurpose"
+      "+otp.code +otp.expiry +otpPurpose -quizProgress -enrolledCourses"
     );
 
     if (!user || !user.verifyOTP(otp, OtpPorposes.PASSWORD_RESET)) {

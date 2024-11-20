@@ -28,6 +28,7 @@ const userSchema = new mongoose.Schema(
       required: [true, "Please Enter Your Email"],
       unique: true,
       validate: [validator.isEmail, "Please Enter a valid Email"],
+      index: true,
     },
     password: {
       type: String,
@@ -52,6 +53,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: AvailableLoginProviders,
       default: LoginProviders.EMAIL_PASSWORD,
+      index: true,
     },
     providerId: {
       type: String,
@@ -94,6 +96,7 @@ const userSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+userSchema.index({ email: 1, provider: 1 });
 
 // Hash password before saving
 userSchema.pre("save", async function (next) {

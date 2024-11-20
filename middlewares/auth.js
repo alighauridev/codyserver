@@ -16,7 +16,10 @@ const getUserById = async (userId) => {
     if (user) {
       return user;
     }
-    user = await User.findById(userId).select("-quizProgress -enrolledCourses");
+
+    user = await User.findById(userId)
+      .select("-quizProgress -enrolledCourses")
+      .lean(); // Add lean() here
 
     if (user) {
       userCache.set(userId, user);
@@ -25,7 +28,7 @@ const getUserById = async (userId) => {
     return user;
   } catch (error) {
     console.error("Cache error:", error);
-    return await User.findById(userId);
+    return await User.findById(userId).lean();
   }
 };
 

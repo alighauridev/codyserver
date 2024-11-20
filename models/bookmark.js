@@ -31,7 +31,8 @@ const bookmarkSchema = new mongoose.Schema(
 );
 
 // Compound index to ensure a user can't bookmark the same lesson twice
-bookmarkSchema.index({ user: 1, lesson: 1 }, { unique: true });
+bookmarkSchema.index({ user: 1, course: 1 });
+bookmarkSchema.index({ createdAt: -1 });
 
 const Bookmark = mongoose.model("Bookmark", bookmarkSchema);
 

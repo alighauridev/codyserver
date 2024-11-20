@@ -96,6 +96,8 @@ streakSchema.methods.updateStreak = async function (
   coursesCompleted,
   studyHours
 ) {
+  console.log({ activityDate, lessonsCompleted, coursesCompleted, studyHours });
+
   const today = new Date(activityDate);
   today.setHours(0, 0, 0, 0);
 

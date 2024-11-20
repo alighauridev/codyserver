@@ -52,37 +52,28 @@ router.delete(
 // Get all bookmarks for a user with pagination, filtering, and searching
 router.get(
   "/bookmarks",
-  asyncHandler(async (req, res, next) => {
-    const userId = req.user._id;
-
-    // Pagination
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 10;
+  asyncHandler(async (req, res) => {
+    const { page = 1, limit = 10, course, search } = req.query;
     const skip = (page - 1) * limit;
+    const filter = { user: req.user._id };
 
-    // Filtering
-    const filter = { user: userId };
-    if (req.query.course) {
-      filter.course = req.query.course;
-    }
-
-    // Searching
-    if (req.query.search) {
+    if (course) filter.course = course;
+    if (search) {
       filter.$or = [
-        { "lesson.title": { $regex: req.query.search, $options: "i" } },
-        { "course.title": { $regex: req.query.search, $options: "i" } },
+        { "lesson.title": { $regex: search, $options: "i" } },
+        { "course.title": { $regex: search, $options: "i" } },
       ];
     }
 
     const [totalBookmarks, bookmarks] = await Promise.all([
-      Bookmark.countDocuments(),
-
+      Bookmark.countDocuments(filter).lean(),
       Bookmark.find(filter)
         .populate("lesson", "title duration")
         .populate("course", "title coverImage")
-        .sort({ createdAt: -1 })
+        .sort("-createdAt")
         .skip(skip)
-        .limit(limit),
+        .limit(limit)
+        .lean(),
     ]);
 
     res.status(200).json({
@@ -90,7 +81,7 @@ router.get(
       results: bookmarks.length,
       totalPages: Math.ceil(totalBookmarks / limit),
       totalBookmarks,
-      currentPage: page,
+      currentPage: Number(page),
       bookmarks,
     });
   })
@@ -195,23 +186,24 @@ router.get(
     });
   })
 );
-// Check if a lesson is bookmarked by the user
+// Bookmark check
 router.get(
   "/bookmarks/check/:lessonId",
-  asyncHandler(async (req, res, next) => {
-    const { lessonId } = req.params;
-    const userId = req.user._id;
-
-    const bookmark = await Bookmark.findOne({ user: userId, lesson: lessonId });
+  asyncHandler(async (req, res) => {
+    const bookmark = await Bookmark.findOne({
+      user: req.user._id,
+      lesson: req.params.lessonId,
+    })
+      .select("_id")
+      .lean();
 
     res.status(200).json({
       success: true,
       data: {
         isBookmarked: !!bookmark,
-        bookmarkId: bookmark ? bookmark._id : null,
+        bookmarkId: bookmark?._id || null,
       },
     });
   })
 );
-
 module.exports = router;

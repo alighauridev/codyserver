@@ -38,7 +38,9 @@ router.get(
     const courses = await Course.find({ status: "published" })
       .populate("category")
       .sort({ publishedAt: -1 })
-      .limit(limit);
+      .limit(limit)
+      .lean();
+
     res.status(200).json({
       success: true,
       courses,
@@ -133,7 +135,8 @@ router.get(
         .populate("category")
         .select(
           "title tags studentsEnrolled difficulty overallRating numberOfRatings status coverImage logo"
-        ),
+        )
+        .lean(),
       Course.countDocuments({ status: "published" }),
     ]);
 
@@ -157,7 +160,8 @@ router.get("/courses-detials/:id", async (req, res, next) => {
       _id: req.params.id,
     })
       .populate("category")
-      .sort({ publishedAt: -1 });
+      .sort({ publishedAt: -1 })
+      .lean();
 
     if (fields) {
       query = populateFields(query, fields);
@@ -302,7 +306,8 @@ router.get(
       Course.find({})
         .populate("category")
         .limit(Number(limit))
-        .sort({ createdAt: -1 }),
+        .sort({ createdAt: -1 })
+        .lean(),
       Course.countDocuments(),
     ]);
 
@@ -489,7 +494,8 @@ router.get(
       })
       .sort("-createdAt")
       .limit(limit)
-      .skip(skip);
+      .skip(skip)
+      .lean();
 
     if (!enrolledCourses) {
       return next(new ErrorHandler("No enrolled courses found", 404));
