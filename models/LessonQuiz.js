@@ -35,7 +35,7 @@ const quizSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
-
+quizSchema.index({ lesson: 1 });
 // Ensure that only one option is marked as correct
 quizSchema.pre("save", function (next) {
   const correctOptions = this.options.filter((option) => option.isCorrect);

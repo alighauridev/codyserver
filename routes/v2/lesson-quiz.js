@@ -163,7 +163,7 @@ router.get(
   asyncHandler(async (req, res, next) => {
     const { lessonId } = req.params;
 
-    const quizzes = await LessonQuiz.find({ lesson: lessonId });
+    const quizzes = await LessonQuiz.find({ lesson: lessonId }).lean();
 
     res.status(200).json({
       success: true,

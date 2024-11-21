@@ -11,12 +11,11 @@ router.get(
   asyncHandler(async (req, res) => {
     const { limit = 5, viewAll } = req.query;
 
-    let categoryQuery = Category.find();
+    const categories = await Category.find()
+      .sort("-courseCount")
+      .limit(viewAll ? undefined : Number(limit))
+      .lean();
 
-    if (!viewAll) {
-      categoryQuery = categoryQuery.limit(limit);
-    }
-    const categories = await categoryQuery.sort("-courseCount").exec();
     res.status(200).json({
       success: true,
       count: categories.length,

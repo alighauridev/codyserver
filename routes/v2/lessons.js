@@ -37,7 +37,7 @@ router.get(
   "/lessons/:id",
   asyncHandler(async (req, res, next) => {
     const { id } = req.params;
-    const lesson = await Lesson.findById(id);
+    const lesson = await Lesson.findById(id).lean();
     if (!lesson) {
       return next(new ErrorHandler("Lesson not found", 404));
     }
