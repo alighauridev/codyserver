@@ -1,13 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
 const NodeCache = require("node-cache");
-
-const userCache = new NodeCache({
-  stdTTL: 3600,
-  checkperiod: 600,
-  useClones: false,
-  deleteOnExpire: true,
-});
+const { userCache } = require("../utils/cache");
 
 const getUserById = async (userId) => {
   try {

@@ -21,6 +21,7 @@ const {
   uploadCloudinary,
 } = require("../utils/cloudinary");
 const Streak = require("../models/streak");
+const { userCache } = require("../utils/cache");
 
 // Register Api
 router.post(
@@ -570,7 +571,9 @@ router.patch("/update-profile", isAuthenticated, async (req, res, next) => {
   await User.findByIdAndUpdate(req.user._id, newUserData, {
     runValidators: false,
   });
+  console.log({ _id: req.user._id });
 
+  userCache.del(req.user._id.toString());
   res.status(200).json({
     success: true,
     message: "Profile has been updated!",
@@ -629,6 +632,7 @@ router.patch(
           public_id: myCloud.public_id,
           url: myCloud.secure_url,
         };
+        userCache.del(req.user._id.toString());
 
         // Save the updated user document
         await user.save({ validateBeforeSave: false });
