@@ -234,7 +234,6 @@ router.post(
       //   return next(new ErrorHandler("Authentication failed", 401));
       // }
     } else {
-      await Streak.getOrCreateStreak(req.user._id);
       user = new User({
         name,
         email,
@@ -246,7 +245,10 @@ router.post(
     }
 
     user.lastLogin = new Date();
-    await user.save({ validateBeforeSave: false });
+    await Promise.all([
+      user.save({ validateBeforeSave: false }),
+      Streak.getOrCreateStreak(user._id),
+    ]);
 
     const token = user.getJWTToken();
 
