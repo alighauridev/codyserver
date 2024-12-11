@@ -234,6 +234,7 @@ router.post(
       //   return next(new ErrorHandler("Authentication failed", 401));
       // }
     } else {
+      await Streak.getOrCreateStreak(req.user._id);
       user = new User({
         name,
         email,

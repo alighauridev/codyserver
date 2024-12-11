@@ -151,7 +151,7 @@ app.listen(PORT, async () => {
   // });
   // })
   // await EnrolledCourse.deleteMany();
-  const userId = "6717849d0b5962e36c1d84be";
+  const userId = "6716e8ad3f14a9453307c64d";
   const courseId = "6716e7ed3f14a9453307c633";
   // const course = await EnrolledCourse.findOneAndDelete({
   //   user: userId,
@@ -175,6 +175,7 @@ app.listen(PORT, async () => {
   // await userModel.findByIdAndUpdate(userId, {
   //   $set: {
   //     enrolledCourses: [],
+  //     quizProgress: [],
   //   },
   // });
 
