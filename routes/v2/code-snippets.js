@@ -8,6 +8,8 @@ const router = express.Router();
 router.get(
   "/snippets",
   asyncHandler(async (req, res) => {
+    console.log("Snippets", req.query);
+
     const {
       level,
       tags,
@@ -16,6 +18,7 @@ router.get(
       sort = "-publishedAt",
       page = 1,
       limit = 10,
+      all = "true",
     } = req.query;
 
     const query = { status };
@@ -35,30 +38,41 @@ router.get(
     // Calculate skip for pagination
     const skip = (page - 1) * limit;
 
-    const snippets = await CodeSnippet.find(query)
+    const snippetsQuery = CodeSnippet.find(query)
       .sort(sort)
       .skip(skip)
       .limit(parseInt(limit));
 
-    const total = await CodeSnippet.countDocuments(query);
+    if (all !== "true") {
+      snippetsQuery.limit(Number(limit));
+      snippetsQuery.skip(Number(skip));
+    }
+
+    const [snippets, snippetsCount] = await Promise.all([
+      snippetsQuery.exec(),
+      await CodeSnippet.countDocuments(query),
+    ]);
+    console.log({ snippets });
 
     res.status(200).json({
       success: true,
-      data: snippets,
-      pagination: {
-        total,
-        page: parseInt(page),
-        totalPages: Math.ceil(total / limit),
-      },
+      snippets,
+      totalSnippets: snippetsCount,
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(snippetsCount / limit),
     });
   })
 );
 
-// Get single snippet by slug
 router.get(
-  "/snippets/:slug",
+  "/snippets/:id",
   asyncHandler(async (req, res, next) => {
-    const snippet = await CodeSnippet.findOne({ slug: req.params.slug });
+    const id = req.params.id;
+
+    if (!id) {
+      return next(new ErrorHandler("Id not found"));
+    }
+    const snippet = await CodeSnippet.findOne({ _id: id });
 
     if (!snippet) {
       return next(new ErrorHandler("Snippet not found", 404));
@@ -66,7 +80,7 @@ router.get(
 
     res.status(200).json({
       success: true,
-      data: snippet,
+      snippet,
     });
   })
 );
@@ -105,9 +119,10 @@ router.post(
 
 // Update snippet
 router.put(
-  "/snippets/:slug",
+  "/snippets/:id",
   asyncHandler(async (req, res, next) => {
-    let snippet = await CodeSnippet.findOne({ slug: req.params.slug });
+    const id = req.params.id;
+    let snippet = await CodeSnippet.findOne({ _id: id });
 
     if (!snippet) {
       return next(new ErrorHandler("Snippet not found", 404));
@@ -118,27 +133,22 @@ router.put(
       req.body.publishedAt = new Date();
     }
 
-    snippet = await CodeSnippet.findOneAndUpdate(
-      { slug: req.params.slug },
-      req.body,
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
+    snippet = await CodeSnippet.findByIdAndUpdate({ _id: id }, req.body, {
+      new: true,
+    });
 
     res.status(200).json({
       success: true,
-      data: snippet,
+      message: "Update Code Snippets Successfully",
     });
   })
 );
 
 // Delete snippet
 router.delete(
-  "/snippets/:slug",
+  "/snippets/:id",
   asyncHandler(async (req, res, next) => {
-    const snippet = await CodeSnippet.findOne({ slug: req.params.slug });
+    const snippet = await CodeSnippet.findOne({ _id: req.params.id });
 
     if (!snippet) {
       return next(new ErrorHandler("Snippet not found", 404));
@@ -148,7 +158,7 @@ router.delete(
 
     res.status(200).json({
       success: true,
-      data: {},
+      message: "Delete Code Snippets Succcessfully",
     });
   })
 );

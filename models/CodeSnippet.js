@@ -24,11 +24,7 @@ const snippetSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
-    slug: {
-      type: String,
-      unique: true,
-      lowercase: true,
-    },
+
     description: {
       type: String,
       required: true,
@@ -54,15 +50,16 @@ const snippetSchema = new mongoose.Schema(
     },
     featuredImage: {
       url: String,
-      alt: String,
+      public_id: String,
     },
 
-    publishedAt: Date,
+    publishedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
   }
 );
 
@@ -70,16 +67,6 @@ const snippetSchema = new mongoose.Schema(
 snippetSchema.index({ tags: 1 });
 snippetSchema.index({ publishedAt: -1 });
 
-// Generate slug before saving
-snippetSchema.pre("save", function (next) {
-  if (this.isModified("title")) {
-    this.slug = this.title
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, "")
-      .replace(/\s+/g, "-");
-  }
-  next();
-});
 const CodeSnippet = mongoose.model("CodeSnippet", snippetSchema);
 
 module.exports = CodeSnippet;

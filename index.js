@@ -19,6 +19,7 @@ const lessons_quizes = require("./routes/v2/lesson-quiz");
 const quizes = require("./routes/v2/quizzes");
 const challenges = require("./routes/v2/challenge");
 const bookmarksv2 = require("./routes/v2/bookmark");
+const codeSnippets = require("./routes/v2/code-snippets");
 const lessonModel = require("./models/lessonModel");
 const courseModel = require("./models/courseModel");
 const Streak = require("./models/streak");
@@ -30,6 +31,7 @@ const EnrolledCourse = require("./models/enrolledCourse");
 const Certificate = require("./models/certificate");
 const LessonQuiz = require("./models/LessonQuiz");
 const moment = require("moment");
+const CodeSnippet = require("./models/CodeSnippet");
 
 const isProduction = process.env.NODE_ENV?.trim() === "production";
 const mongodbURL = isProduction
@@ -40,6 +42,9 @@ const app = express();
 app.use(express.static(path.join(__dirname, "public")));
 app.use(cors()); // Use CORS with default options - allows all origins
 app.use(bodyParser.json());
+console.log({
+  isProduction,
+});
 
 mongoose
   .connect(mongodbURL, {
@@ -121,6 +126,7 @@ app.use(
   lessonsv2,
   reviewsv2,
   lessons_quizes,
+  codeSnippets,
   bookmarksv2,
   challenges,
   certificateRoutes
@@ -178,7 +184,6 @@ app.listen(PORT, async () => {
   //     quizProgress: [],
   //   },
   // });
-
   console.log(`Server is running on port ${PORT}`);
 });
 const syncQuizzesWithLessons = async (session) => {
